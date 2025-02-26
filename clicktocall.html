@@ -1288,12 +1288,16 @@
                 const callsArray = Object.entries(calls)
                     .map(([key, call]) => ({
                         ...call,
-                        key
+                        key,
+                        // Create a sortDate property for accurate sorting
+                        sortDate: convertToDateTime(call.dateTime)
                     }))
                     .sort((a, b) => {
-                        const dateA = convertToDateTime(a.dateTime);
-                        const dateB = convertToDateTime(b.dateTime);
-                        return dateB - dateA; // Most recent first
+                        // Sort by timestamp if available, otherwise use converted date
+                        if (a.timestamp && b.timestamp) {
+                            return b.timestamp - a.timestamp;
+                        }
+                        return b.sortDate - a.sortDate;
                     });
 
                 const callListHtml = callsArray.map(call => `
@@ -1546,23 +1550,27 @@ JB INFRA
             if (!dateTimeStr) return new Date(0);
             
             try {
-                // Example format: "25/02/25 2:15 PM"
-                const [datePart, timePart, meridian] = dateTimeStr.split(' ');
+                // Split the date and time parts
+                const [datePart, timePart, meridian] = dateTimeStr.trim().split(' ');
+                
+                // Parse date components
                 const [day, month, year] = datePart.split('/').map(num => parseInt(num));
+                
+                // Parse time components
                 let [hours, minutes] = timePart.split(':').map(num => parseInt(num));
                 
-                // Adjust hours for PM
-                if (meridian === 'PM' && hours < 12) {
-                    hours += 12;
-                }
-                // Adjust midnight
-                if (meridian === 'AM' && hours === 12) {
-                    hours = 0;
+                // Handle AM/PM properly
+                const period = (meridian || '').toUpperCase();
+                if (period === 'AM' || period === 'am') {
+                    if (hours === 12) hours = 0;
+                } else if (period === 'PM' || period === 'pm') {
+                    if (hours !== 12) hours += 12;
                 }
                 
+                // Create date object (year is 2000 + YY format)
                 return new Date(2000 + year, month - 1, day, hours, minutes);
             } catch (e) {
-                console.error('Date parsing error:', dateTimeStr);
+                console.error('Error parsing date:', dateTimeStr, e);
                 return new Date(0);
             }
         }
